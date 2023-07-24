@@ -10,7 +10,7 @@ This exists to help students with mip generation, and because of the bugs in the
 """
 
 # std
-from csv import reader
+import csv
 from functools import partial
 import itertools
 from multiprocessing import Pool, cpu_count
@@ -32,8 +32,9 @@ import numpy as np
 from PIL import Image, ImageOps, ImageDraw, ImageFont, ImageChops, ImageTk
 import pyvista as pv
 from readlif.reader import LifFile
-from scipy.ndimage import zoom
-from skimage.measure import regionprops
+from scipy.ndimage import zoom, binary_fill_holes, distance_transform_edt, binary_dilation, binary_erosion
+from skimage.measure import regionprops, label
+from skimage import morphology
 from tkinter.filedialog import askdirectory
 import tkinter as tk
 from tkinter import ttk
@@ -137,6 +138,7 @@ class BioImage:
     imfile: aicspylibczi.CziFile = attr.ib(default=None)
     czi: tuple = attr.ib(default=())
     im: np.ndarray = attr.ib(default=[0., 0.])
+    cell_mass: np.ndarray = attr.ib(default=[0., 0.])
     mosaic: np.ndarray = attr.ib(default=[0., 0.])
     num_channels: int = attr.ib(default=0)
     num_z_slices: int = attr.ib(default=0)
@@ -905,10 +907,6 @@ class BioImage:
                 self.mask_props.convexity = np.hstack((self.mask_props.convexity, r.convex_area / r.area))
                 self.mask_props.orientation = np.hstack((self.mask_props.orientation, r.orientation))
 
-                # saturation intensity in mask of the mask
-                self.mask_props.mask_sat = np.hstack((self.mask_props.mask_sat,
-                                                      np.mean(area_im[self.mask_ch][r.coords[:, 0], r.coords[:, 1]])))
-
                 # saturation intensity in mask of the other channels
                 tf_sat = np.hstack([
                     np.mean(area_im[c][r.coords[:, 0], r.coords[:, 1]])
@@ -925,9 +923,81 @@ class BioImage:
             # add all area_id to mask_id_processed
             mask_id_processed = np.hstack([area_id, mask_id_processed])
 
-        # calculate the distance of each mask from the edge of the cell mass
-        cell_mass = np.zeros_like(mask)
+        # calculate distance of each cell in mask from edge of cell mass
+        print('Calculating distances of cells from edge of cell mass...')
 
+
+        # cellpose_model = models.Cellpose(gpu=True, model_type='nuclei')
+        # nuc_mask = cellpose_model.eval(
+        #     self.nmip[nuclear_channel].astype(np.uint8),
+        #     diameter=diam,
+        #     flow_threshold=flow_threshold,
+        #     cellprob_threshold=cellprob_threshold)[0]
+        # # region props centroids
+        # properties = regionprops(label(nuc_mask))
+        # centroids = np.array([prop.centroid for prop in properties]).astype(np.int64)
+        #
+        # threshold = 1
+        # cell_mass = (nuc_mask > 0 * (threshold + 1)).astype(np.float64)
+        # tri_upper_ind = np.triu_indices(centroids.shape[0], k=1)
+        # centroid_combinations = centroids[np.array(tri_upper_ind)]
+        #
+        # # thin out centroid combinations
+        # dist = centroid_combinations[0, :, :] - centroid_combinations[1, :, :]
+        # dist = (dist[:, 0] ** 2 + dist[:, 1] ** 2) ** 0.5
+        # dist = dist < cell_mass.shape[1] / 2
+        # centroid_combinations = centroid_combinations[:, dist, :]
+        #
+        # z = np.zeros_like(cell_mass).astype(np.float64)
+        # for c1, c2 in tqdm(centroid_combinations.transpose((1, 0, 2)), total=centroid_combinations.shape[1]):
+        #     temp = z.copy()
+        #     cell_mass += cv2.line(temp, c1[::-1], c2[::-1], (1,), 5).astype(np.float64) / centroid_combinations.shape[1]
+        #
+
+        combo = self.nmip.astype(np.float64)
+        combo = combo.sum(axis=0)
+        combo = combo / combo.max() * 255
+        combo = combo.astype(np.uint8)
+        # bw = 255 - cv2.adaptiveThreshold(combo, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 5)
+
+        combo = cv2.medianBlur(combo, 33)
+        th, _ = cv2.threshold(combo, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        bw = combo > (th * 0.33)
+        bw = np.pad(bw, 2, 'constant', constant_values=255)
+        bw[0:2,0:2] = 0
+        bw[0:2,-3:-1] = 0
+        bw[-3:-1,0:2] = 0
+        bw[-3:-1,-3:-1] = 0
+        bw = bw > 0
+        bw = binary_fill_holes(bw)
+        bw = bw[2:-2, 2:-2]
+        diam = np.mean(self.mask_props.area) + 3 * np.std(self.mask_props.area)
+        bw = morphology.remove_small_objects(bw, int(3 * (diam/2)**2))
+
+        # calculate distance of each mask from the edge of the cell mass
+        self.mask_props.dist_from_edge = np.zeros(self.mask_props.id.shape[0])
+        dist_transform = distance_transform_edt(bw)
+        for n, i in enumerate(self.mask_props.id):
+            obj = (mask == i)
+            if obj.sum() == 0:
+                continue
+            mean_distance = np.nanmean(dist_transform[obj])
+            if np.isfinite(mean_distance):
+                self.mask_props.dist_from_edge[n] = mean_distance
+            else:
+                self.mask_props.dist_from_edge[n] = -1
+
+        fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+        ax[0].imshow(im.transpose((1, 2, 0)))
+        ax[1].imshow(bw * 255)
+        cell_mass_im = im[0, :, :] / 2 + bw.astype(np.uint8) * 255 / 2
+        ax[2].imshow(cell_mass_im)
+        ax[2].scatter(self.mask_props.centroid[:, 1],
+                      self.mask_props.centroid[:, 0],
+                      c='r',
+                      s=self.mask_props.dist_from_edge / 50)
+
+        self.cell_mass = cell_mass_im
 
     def process_3d_mask(self):
 
@@ -1068,10 +1138,6 @@ class BioImage:
                 self.mask_props.eccentricity = np.hstack((self.mask_props.eccentricity, r.eccentricity))
                 self.mask_props.orientation = np.hstack((self.mask_props.orientation, r.orientation))
 
-                # saturation intensity in mask of the mask
-                self.mask_props.mask_sat = np.hstack((self.mask_props.mask_sat,
-                                                      np.mean(vol_im[self.mask_ch][r.coords[:, 0], r.coords[:, 1], r.coords[:, 2]])))
-
                 # saturation intensity in mask of the other channels
                 tf_sat = np.hstack([
                     np.mean(vol_im[c][r.coords[:, 0], r.coords[:, 1], r.coords[:, 2]])
@@ -1096,8 +1162,6 @@ class BioImage:
         except:
             ch_of_interest = [i for i in SO.channels_of_interest_vars]
 
-
-
         # with num_channel axes
         fig, ax = plt.subplots(2,
                                np.max([sum(ch_of_interest) + 1, 3]),
@@ -1111,11 +1175,6 @@ class BioImage:
 
         x = self.mask_props.centroid[:,1]
         y = self.mask_props.centroid[:,0]
-
-        ax[0, 0].scatter(x, y,
-                      s=(self.mask_props.mask_sat / self.mask_props.mask_sat.max()),
-                      c='white',
-                      alpha=0.99)
 
         colors = ['cyan', 'yellow', 'red', 'magenta', 'green']
         for c in range(self.mask_props.tf_sat.shape[1]):
@@ -1211,6 +1270,7 @@ class BioImage:
         # save images
         cv2.imwrite(f'{file_stem}_masks.png', cv2.cvtColor(np.array(mask), cv2.COLOR_GRAY2BGR))
         cv2.imwrite(f'{file_stem}_masks_color.png', mask_color)
+        cv2.imwrite(f'{file_stem}_cell_mass.png', self.cell_mass)
 
         # save data as csv
         with open(file_stem + '_2Dresults.csv', 'w') as f:
@@ -1226,8 +1286,8 @@ class BioImage:
                   'eccentricity,' \
                   'convexity,' \
                   'orientation,' \
-                  'mask_sat'
-
+                  'mask_sat,' \
+                  'dist_from_edge'
             tf = ''
             try:
                 SO.channels_of_interest_vars[0].get()
@@ -1258,7 +1318,9 @@ class BioImage:
                         f'{self.mask_props.eccentricity[i]},'
                         f'{self.mask_props.convexity[i]},'
                         f'{self.mask_props.orientation[i]},'
-                        f'{self.mask_props.mask_sat[i]}' + tf + '\n')
+                        f'{self.mask_props.mask_sat[i]},'
+                        f'{self.mask_props.dist_from_edge[i]},'
+                        + tf + '\n')
 
     def save_3d_mask(self, po):
 
@@ -1332,6 +1394,7 @@ class BioImage:
                         f'{self.mask_props.convexity[i]},'
                         f'{self.mask_props.orientation[i]},'
                         f'{self.mask_props.mask_sat[i]}' + tf + '\n')
+
 
 # @attr.s(auto_attribs=True, auto_detect=True)
 class MainGUI(tk.Tk):
@@ -1747,7 +1810,13 @@ def process_file(po):
     processes a file
     """
 
-    global SO, model_choice, diam, flow_threshold, cellprob_threshold, alter_mask_channel, mask_ch, image
+    global SO,\
+        model_choice,\
+        diam, \
+        flow_threshold, \
+        cellprob_threshold, \
+        alter_mask_channel, \
+        mask_ch, image, \
 
     print('\033[93m', end='')
     print(f'\nprocessing path: {po.image_path}\n'
@@ -1844,6 +1913,9 @@ def process_file(po):
     if not ('cellprob_threshold' in globals()):
         cellprob_threshold = -1.5  # @{type:"slider", min:-6, max:6, step:1}
 
+    if not ('stitch_threshold' in globals()):
+        stitch_threshold = 0.0  # @{type:"slider", min:-6, max:6, step:1}
+
     if SO.segment_2D or image.im.shape[1] == 1:
 
         if not image.big_image:
@@ -1858,6 +1930,13 @@ def process_file(po):
             cellpose_image[1, :, :] = image.mip[1, :, :]  # G
             cellpose_image[2, :, :] = image.mip[0, :, :]  # B
 
+            # note that image.mask_ch is not transformed with the cellpose bindings
+
+            # cellpose_image = cellpose_image.transpose(2, 1, 0).astype('uint8')
+            # plt.imshow(cellpose_image)
+            # print(f'diam:{diam}, ft:{flow_threshold}, cpt:{cellprob_threshold}, ch:{channels}')
+            # plt.savefig('out.png')
+
             cellpose_out = cellpose_model.eval(cellpose_image.astype('uint8'),
                                         diameter=diam,
                                         flow_threshold=flow_threshold,
@@ -1867,10 +1946,10 @@ def process_file(po):
             image.mask = cellpose_out[0]
             image.flow = cellpose_out[1]
             try:
-                diam = cellpose_out[3]
+                image.diam = cellpose_out[3]
             except:
                 print('no diameter returned')
-                diam = -1
+                image.diam = -1
 
         if image.big_image:
 
@@ -1885,6 +1964,40 @@ def process_file(po):
             (i.e. X in _ch0X.tif), in order RGB"""
 
             image.mosaic = image.mosaic[[2, 1, 0], :, :, :, :]
+
+            # # parallel -> untested, something like this might work
+            # # Create a partial function with the fixed parameters
+            # partial_process_mosaic = partial(
+            #     process_mosaic,
+            #     mosaic=image.mosaic,
+            #     cellpose_model=cellpose_model,
+            #     diam=diam,
+            #     flow_threshold=flow_threshold,
+            #     cellprob_threshold=cellprob_threshold,
+            #     channels=channels
+            # )
+            #
+            # # Use the partial function with the multiprocessing Pool
+            # print('Initializing a parallel process...')
+            # pool = Pool(processes=cpu_count())
+            # results = list(tqdm(pool.imap(partial_process_mosaic, range(image.num_mosaics)), desc="Segmenting a big mosaic"))
+            #
+            # # multiprocessing for big images is necessary
+            # for result in tqdm(results, desc="Processing results"):
+            #     m, mask, flow = result
+            #
+            #     # Determine the # rows and columns in the mosaic (assumes square im)
+            #     row = image.bbox[m, 0] // image.bbox[1, 0]
+            #     col = image.bbox[m, 1] // image.bbox[1, 0]
+            #
+            #     image.mask[:, :, m] = mask
+            #     image.flow[:, :, :, m] = flow
+            #
+            #     # Add the mask to the appropriate z-stack
+            #     image.masks_combined[image.bbox[m, 1]:image.bbox[m, 1] + image.bbox[m, 3],
+            #                         image.bbox[m, 0]:image.bbox[m, 0] + image.bbox[m, 2],
+            #                         (row % 2) * 2 + (col % 2)
+            #                         ] = image.mask[:, :, m]
 
             # serial
             max_in_masks = 0
@@ -1916,7 +2029,6 @@ def process_file(po):
                                      image.bbox[m, 0]:image.bbox[m, 0] + image.bbox[m, 2],
                                      (row % 2) * 2 + (col % 2)] = image.mask[:, :, m]
 
-
                 # max of all in image
                 max_in_masks = image.masks_combined.max()
 
@@ -1943,8 +2055,8 @@ def scripting():
 
     po = ProcessOptions()
 
-    files = find_all_images_in_path('/Users/peternewman/Drive/Python/plot/BL_distance_from_edge/resources/im', '.tif')
-    model_choice = r"nuclei"
+    files = find_all_images_in_path('/Users/peternewman/Drive/Python/plot/cellpose_wrapper/resources/im', '.tif')
+    model_choice = "nuclei"
 
     diam = 20.0  # autofit, or change for purpose
     flow_threshold = 0.3  # defaults ~ 0.3, comment if not neede
@@ -1957,9 +2069,9 @@ def scripting():
     #   ch01 = green = 2
     #   ch02 = red = 1
 
-    mask_properties = []
+    mask_properties = [None] * len(files)
 
-    for file in files:
+    for n, file in enumerate(files):
 
         po.image_path = file
         po.save_path = os.path.dirname(file)
@@ -1974,7 +2086,7 @@ def scripting():
         SO = SegmentationOptions()
         po.segment_image = True
 
-        mask_properties.append(process_file(po))
+        mask_properties[n] = process_file(po)
 
     # save a csv file with the name of all files, and the total number of mask objects in each image
     print('saving master cell count')
