@@ -1286,7 +1286,6 @@ class BioImage:
                   'eccentricity,' \
                   'convexity,' \
                   'orientation,' \
-                  'mask_sat,' \
                   'dist_from_edge'
             tf = ''
             try:
@@ -1318,7 +1317,6 @@ class BioImage:
                         f'{self.mask_props.eccentricity[i]},'
                         f'{self.mask_props.convexity[i]},'
                         f'{self.mask_props.orientation[i]},'
-                        f'{self.mask_props.mask_sat[i]},'
                         f'{self.mask_props.dist_from_edge[i]},'
                         + tf + '\n')
 
@@ -1816,7 +1814,8 @@ def process_file(po):
         flow_threshold, \
         cellprob_threshold, \
         alter_mask_channel, \
-        mask_ch, image, \
+        mask_ch, \
+        image
 
     print('\033[93m', end='')
     print(f'\nprocessing path: {po.image_path}\n'
@@ -2055,16 +2054,16 @@ def scripting():
 
     po = ProcessOptions()
 
-    files = find_all_images_in_path('/Users/peternewman/Drive/Python/plot/cellpose_wrapper/resources/im', '.tif')
-    model_choice = "nuclei"
+    files = find_all_images_in_path(r"Z:\PRJ-Lim\Edge Cones", '.tif')
+    model_choice = r"Z:\PRJ-Lim\cellseg\Cellpose Models\ARR_CRX_4"
 
-    diam = 20.0  # autofit, or change for purpose
-    flow_threshold = 0.3  # defaults ~ 0.3, comment if not neede
-    cellprob_threshold = 1.4  # defaults ~ -1.4?!, comment if not need
+    diam = 14.75  # autofit, or change for purpose
+    flow_threshold = 0.9  # defaults ~ 0.3, comment if not neede
+    cellprob_threshold = 0.0001  # defaults ~ -1.4?!, comment if not need
     alter_mask_channel = True
 
     """ I think the inputs here 0-3 are: 0 for gray, 1 for red, 2 for green, 3 for blue """
-    mask_ch = [2, 1] # this might accept two channels like this in a list, but a len(1) int should work as well
+    mask_ch = [1, 2] # this might accept two channels like this in a list, but a len(1) int should work as well
     #   ch00 = blue = 3
     #   ch01 = green = 2
     #   ch02 = red = 1
