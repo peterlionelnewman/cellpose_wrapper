@@ -1,9 +1,18 @@
 file,num_mask_objects
-/Users/peternewman/Drive/Python/plot/cellpose_wrapper/resources/im/20x RA- 1_Processed001.tif,1055
-/Users/peternewman/Drive/Python/plot/cellpose_wrapper/resources/im/20x FGF8 RA- 2_Processed001.tif,973
-/Users/peternewman/Drive/Python/plot/cellpose_wrapper/resources/im/20x FGFRA- 1_Processed001.tif,104
-/Users/peternewman/Drive/Python/plot/cellpose_wrapper/resources/im/20x FGF8 RA+ 2_Processed001.tif,599
-/Users/peternewman/Drive/Python/plot/cellpose_wrapper/resources/im/20x FGFRA+ 3_Processed001.tif,466
-/Users/peternewman/Drive/Python/plot/cellpose_wrapper/resources/im/20x RA+ 2_Processed001.tif,150
-/Users/peternewman/Drive/Python/plot/cellpose_wrapper/resources/im/20x RA- 2_Processed001.tif,44
-/Users/peternewman/Drive/Python/plot/cellpose_wrapper/resources/im/20x RA+ 3_Processed001.tif,301
+
+D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im\20x FGF8 RA+ 2_Processed001.tif,665
+
+D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im\20x FGF8 RA- 2_Processed001.tif,1117
+
+D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im\20x FGFRA+ 3_Processed001.tif,1288
+
+D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im\20x FGFRA- 1_Processed001.tif,1419
+
+D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im\20x RA+ 2_Processed001.tif,1251
+
+D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im\20x RA+ 3_Processed001.tif,1079
+
+D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im\20x RA- 1_Processed001.tif,972
+
+D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im\20x RA- 2_Processed001.tif,1318
+

@@ -910,7 +910,7 @@ class BioImage:
                 # saturation intensity in mask of the other channels
                 tf_sat = np.hstack([
                     np.mean(area_im[c][r.coords[:, 0], r.coords[:, 1]])
-                    for c in range(self.num_channels) if ch_of_interest[c]
+                    for c in range(self.num_channels)
                 ])
 
                 if count == 0:
@@ -986,6 +986,9 @@ class BioImage:
                 self.mask_props.dist_from_edge[n] = mean_distance
             else:
                 self.mask_props.dist_from_edge[n] = -1
+
+        if np.isnan(self.mask_props.dist_from_edge).any():
+            print('tell pete, there shouldn''t be nans in the dist from edge')
 
         fig, ax = plt.subplots(1, 3, figsize=(15, 5))
         ax[0].imshow(im.transpose((1, 2, 0)))
@@ -1141,7 +1144,7 @@ class BioImage:
                 # saturation intensity in mask of the other channels
                 tf_sat = np.hstack([
                     np.mean(vol_im[c][r.coords[:, 0], r.coords[:, 1], r.coords[:, 2]])
-                    for c in range(self.num_channels) if ch_of_interest[c]
+                    for c in range(self.num_channels)
                 ])
 
                 if count == 0:
@@ -1317,7 +1320,7 @@ class BioImage:
                         f'{self.mask_props.eccentricity[i]},'
                         f'{self.mask_props.convexity[i]},'
                         f'{self.mask_props.orientation[i]},'
-                        f'{self.mask_props.dist_from_edge[i]},'
+                        f'{self.mask_props.dist_from_edge[i]}'  # <- shouldn't be a comma here
                         + tf + '\n')
 
     def save_3d_mask(self, po):
@@ -2054,7 +2057,8 @@ def scripting():
 
     po = ProcessOptions()
 
-    files = find_all_images_in_path(r"Z:\PRJ-Lim\Edge Cones", '.tif')
+    files = find_all_images_in_path(r"Z:\PRJ-Lim\FGF8\NRL_ARR3_CRX\16 Weeks FGF NRL.CRX.ARR3 _IPE2_BL4a\ARR3 14.75 pixels", '.tif')
+    files = find_all_images_in_path(r"D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im", '.tif')
     model_choice = r"Z:\PRJ-Lim\cellseg\Cellpose Models\ARR_CRX_4"
 
     diam = 14.75  # autofit, or change for purpose
@@ -2063,7 +2067,7 @@ def scripting():
     alter_mask_channel = True
 
     """ I think the inputs here 0-3 are: 0 for gray, 1 for red, 2 for green, 3 for blue """
-    mask_ch = [1, 2] # this might accept two channels like this in a list, but a len(1) int should work as well
+    mask_ch = [2, 1] # this might accept two channels like this in a list, but a len(1) int should work as well
     #   ch00 = blue = 3
     #   ch01 = green = 2
     #   ch02 = red = 1

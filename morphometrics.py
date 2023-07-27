@@ -1,3 +1,4 @@
+import os
 import glob
 import pandas as pd
 from pathlib import Path
@@ -7,7 +8,10 @@ import numpy as np
 
 def plot_parameter_histogram(folder_path, par, ax):
     # Get list of all CSV files in the given directory
-    csv_files = glob.glob(folder_path + "/*.csv")
+    if folder_path.endswith('\\'):
+        csv_files = glob.glob(folder_path + "**\*.csv")
+    else:
+        csv_files = glob.glob(folder_path + "**\*.csv")
 
     # Create an empty DataFrame
     data = pd.DataFrame()
@@ -107,25 +111,75 @@ def plot_2d_histogram(csv_file, par1, par2, ax):
     cb = plt.colorbar(hb[3], ax=ax)
     cb.set_label('counts in bin')
 
+def create_scatter_plots(folder_path, par_1, par_2, ax):
+    # Get list of all CSV files in the given directory
+    if folder_path.endswith('\\'):
+        csv_files = glob.glob(folder_path + "**\*.csv")
+    else:
+        csv_files = glob.glob(folder_path + "**\*.csv")
+
+    # Create an empty DataFrame
+    data = pd.DataFrame()
+
+    # Read each csv file and concatenate into the data DataFrame
+    for file in csv_files:
+        df = pd.read_csv(file)
+        data = pd.concat([data, df])
+
+    # clean data
+    data = data[data['minor_ax'] != 0]  # this shouldn't exist
+    data = data[data['area'] >= 80]  # these cells are suspiciously small
+    data = data[data['area'] <= 600]  # these cells are suspiciously big
+
+    # create aspect ratio
+    data['aspect_ratio'] = data['major_ax'] / data['minor_ax']
+
+    # Check if the parameter exists in the DataFrame columns
+    if par_1 not in data.columns:
+        print(f"Parameter {par} not found in the data.")
+        return
+
+    # Check if the parameter exists in the DataFrame columns
+    if par_2 not in data.columns:
+        print(f"Parameter {par} not found in the data.")
+        return
+
+    # Plot histogram
+    ax.scatter(data[par_1], data[par_2])
+    ax.set_xlabel(par_1)
+    ax.set_ylabel(par_2)
+
+    plt.show()
+    # ax.set_yscale('log')
+
 
 if __name__ == '__main__':
 
-    parameters = ['area', 'perimeter', 'major_ax', 'minor_ax', 'aspect_ratio', 'eccentricity', 'convexity']
+    parameters = ['area', 'perimeter', 'major_ax', 'minor_ax', 'aspect_ratio', 'eccentricity', 'convexity', 'dist_from_edge']
 
     # ### histograms of pars
-    # fig, ax = plt.subplots(len(parameters), 2, figsize=(10, 20), dpi=200)
+    #
+    # number_of_folders = 2
+    #
+    # fig, ax = plt.subplots(len(parameters), number_of_folders, figsize=(10, 20), dpi=200)
     #
     # for n, parameter in enumerate(parameters):
     #
-    #     path = '/Users/peternewman/Drive/Python/plot/BL morphometrics/timepoint a'
+    #     path = '/HERE UPDATE ME'
     #     if n == 0:
     #         ax[n, 0].set_title(f"{Path(path).name}")
-    #     plot_parameter_histogram(path, parameter, ax[n, 0])
+    #     plot_parameter_histogram(path, parameter, ax[n, 0])   # <--- hisutogram plots made here for path=='path'
     #
-    #     path = '/Users/peternewman/Drive/Python/plot/BL morphometrics/timepoint b'
+    #     path = 'HERE UPDATE ME'
     #     if n == 0:
     #         ax[n, 1].set_title(f"{Path(path).name}")
     #     plot_parameter_histogram(path, parameter, ax[n, 1])
+    #
+    #     # copy me for # of folders
+    #     # path = 'HERE'
+    #     # if n == 0:
+    #     #     ax[n, 1].set_title(f"{Path(path).name}")
+    #     # plot_parameter_histogram(path, parameter, ax[n, 1])
     #
     # plt.savefig('histograms.png')
     # plt.show()
@@ -141,7 +195,7 @@ if __name__ == '__main__':
     #
     #     for n, file in enumerate(csv_files):
     #         n, m = np.unravel_index(n, ax.shape)
-    #         overlay_parameter_on_image(file, par, ax[n, m])
+    #         overlay_parameter_on_image(file, par, ax[n, m])    # <--------- image over plots made here
     #
     #     plt.savefig(f'{folder_path[-1]}_scatter_overlaid_{par}.png')
     #     plt.show()
@@ -162,9 +216,20 @@ if __name__ == '__main__':
     #     plt.savefig(f'{folder_path[-1]}_scatter_overlaid_{par}.png')
     #     plt.show()
 
-    ## 2D histograms
-    csv_file = '/Users/peternewman/Drive/Python/plot/BL morphometrics/timepoint a/20x FGF8 RA- 1_Processed001.tif_2Dresults.csv'
+    # ## 2D histograms
+    # csv_file = '/Users/peternewman/Drive/Python/plot/BL morphometrics/timepoint a/20x FGF8 RA- 1_Processed001.tif_2Dresults.csv'
+    # fig, ax = plt.subplots(figsize=(10, 8), dpi=200)
+    # plot_2d_histogram(csv_file, 'major_ax', 'eccentricity', ax)
+    # plt.savefig('2D_histogram.png')
+    # plt.show()
+
+    ### scatter plots
+    folder_path = r"D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im"
+
+    par_1 = 'dist_from_edge'  # Replace 'column_name_x' with the actual column name for x-axis data
+    par_2 = 'eccentricity'  # Replace 'column_name_y' with the actual column name for y-axis data
     fig, ax = plt.subplots(figsize=(10, 8), dpi=200)
-    plot_2d_histogram(csv_file, 'major_ax', 'eccentricity', ax)
-    plt.savefig('2D_histogram.png')
-    plt.show()
+
+    create_scatter_plots(folder_path, par_1, par_2, ax)
+
+
