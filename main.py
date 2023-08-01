@@ -1,5 +1,5 @@
 """
-Written by: Peter Lionel Harry Newman, 2023, (p.newman @ sydney edu au)
+Written by: Pete, 2023, (peterlionelnewman @ github)
 Helpful for students
 1. GUI interface to:
 2. search a folder for .czi files
@@ -13,11 +13,15 @@ This exists to help students with mip generation, and because of the bugs in the
 import csv
 from functools import partial
 import itertools
+import os
 from multiprocessing import Pool, cpu_count
 import pickle
 import platform
 import re
 import time
+from tkinter.filedialog import askdirectory
+import tkinter as tk
+from tkinter import ttk
 import warnings
 import xml.etree.ElementTree as ET
 
@@ -35,18 +39,23 @@ from readlif.reader import LifFile
 from scipy.ndimage import zoom, binary_fill_holes, distance_transform_edt, binary_dilation, binary_erosion
 from skimage.measure import regionprops, label
 from skimage import morphology
-from tkinter.filedialog import askdirectory
-import tkinter as tk
-from tkinter import ttk
 from torch import device
+import torch
 from tqdm import tqdm
 import webcolors
 
 
-import os
-os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+global SO, DEVICE
 
-global SO
+if torch.cuda.is_available():
+    print("CUDA is available. PyTorch can use GPUs!")
+    DEVICE = torch.device('cuda')
+elif torch.backends.mps.is_available():
+    print("PyTorch using GPU on mac.")
+    DEVICE = torch.device('mps')
+else:
+    print("CPU ONLY. PyTorch can only use CPUs.")
+    DEVICE = torch.device('cpu')
 
 @attr.s(auto_attribs=True, auto_detect=True)
 class ProcessOptions:
@@ -1775,7 +1784,7 @@ def find_all_images_in_path(search_path, filetype=''):
     """
     os.chdir(search_path)
     image_files = []
-    for root, _, files in os.walk(search_path):
+    for root, _, files in os.walk('.'):
         for file in files:
             if file[0] == '.':
                 continue # since mac folder info
@@ -1785,7 +1794,7 @@ def find_all_images_in_path(search_path, filetype=''):
                 image_files.append(os.path.join(root, file))
 
     if not image_files:
-        tk.messagebox.showerror('Python Error', 'no images found in search path')
+        raise ValueError('no images found in search path')
         return
 
     return image_files
@@ -1890,8 +1899,7 @@ def process_file(po):
     else:
         cellpose_model = models.Cellpose(gpu=True, model_type=model_choice)
 
-    if platform.system() == 'Darwin' and platform.machine() == 'arm64':
-        cellpose_model.device = device("mps")
+    cellpose_model.device = DEVICE
 
     if globals().get('alter_mask_channel'):
         if len(mask_ch) == 1:
@@ -2057,9 +2065,8 @@ def scripting():
 
     po = ProcessOptions()
 
-    files = find_all_images_in_path(r"Z:\PRJ-Lim\FGF8\NRL_ARR3_CRX\16 Weeks FGF NRL.CRX.ARR3 _IPE2_BL4a\ARR3 14.75 pixels", '.tif')
-    files = find_all_images_in_path(r"D:\Ben\Fluorescent Images\cellpose_wrapper\resources\im", '.tif')
-    model_choice = r"Z:\PRJ-Lim\cellseg\Cellpose Models\ARR_CRX_4"
+    files = find_all_images_in_path("./resources/im", '.tif')
+    model_choice = 'nuclei'
 
     diam = 14.75  # autofit, or change for purpose
     flow_threshold = 0.9  # defaults ~ 0.3, comment if not neede
