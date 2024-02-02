@@ -187,6 +187,10 @@ class BioImage:
         for root, _, files in os.walk(os.path.dirname(self.path)):
             for file in files:
                 if file.endswith('.tif'):
+
+                    # this line was put in here to deal with Leica/LSX exporting tif files with suffix - stalled Ben with some stuff
+                    file = file.replace('_overlay.tif', '.tif').replace('_SV.tif', '.tif')  
+                    
                     if file[0] == '.':
                         continue
                     if os.path.basename(self.path)[:-4] in file\
