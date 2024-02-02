@@ -11,6 +11,7 @@ This exists to help students with mip generation, and because of the bugs in the
 
 # std
 import csv
+import sys
 from functools import partial
 import itertools
 import os
@@ -187,14 +188,14 @@ class BioImage:
         for root, _, files in os.walk(os.path.dirname(self.path)):
             for file in files:
                 if file.endswith('.tif'):
-
                     # this line was put in here to deal with Leica/LSX exporting tif files with suffix - stalled Ben with some stuff
-                    file = file.replace('_overlay.tif', '.tif').replace('_SV.tif', '.tif')  
-                    
-                    if file[0] == '.':
+                    temp_path = self.path.replace('_overlay.tif', '.tif').replace('_SV.tif', '.tif')
+                    if file[:2] == '._' and sys.platform.startswith('win'):  # for windows
                         continue
-                    if os.path.basename(self.path)[:-4] in file\
-                            and not file == os.path.basename(self.path):
+                    if file[0] == '.' and sys.platform == 'darwin':  # for mac
+                        continue
+                    if os.path.basename(temp_path)[:-4] in file \
+                            and not file == os.path.basename(temp_path):
                         all_images.append(file)
                         self.num_channels += 1
 
