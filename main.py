@@ -223,7 +223,10 @@ class BioImage:
             # r, g, b = im[:, :, 1], im[:, :, 2], im[:, :, 0]
 
             # Calculate the grayscale image
-            self.im[c, 0, :, :] = 0.2989 * r + 0.5870 * g + 0.1140 * b
+            try:
+                self.im[c, 0, :, :] = 0.2989 * r + 0.5870 * g + 0.1140 * b
+            except:
+                self.im[c, 0, :, :] = 0.2989 * r.T + 0.5870 * g.T + 0.1140 * b.T
 
             color = [r.max(), g.max(), b.max()]
             color /= np.max(color)
