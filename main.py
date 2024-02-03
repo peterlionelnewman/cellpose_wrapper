@@ -644,8 +644,11 @@ class BioImage:
 
             if gamma != 1:
                 mip = mip ** gamma
-
-            self.nmip[c, :, :] = mip * 255
+            
+            try:
+                self.nmip[c, :, :] = mip * 255
+            except:
+                self.nmip[c, :, :] = mip.T * 255
 
     def save(self,
              save_path,
@@ -925,10 +928,16 @@ class BioImage:
                 self.mask_props.orientation = np.hstack((self.mask_props.orientation, r.orientation))
 
                 # saturation intensity in mask of the other channels
-                tf_sat = np.hstack([
-                    np.mean(area_im[c][r.coords[:, 0], r.coords[:, 1]])
-                    for c in range(self.num_channels)
-                ])
+                try:
+                    tf_sat = np.hstack([
+                        np.mean(area_im[c][r.coords[:, 0], r.coords[:, 1]])
+                        for c in range(self.num_channels)
+                    ])
+                except:
+                    tf_sat = np.hstack([
+                        np.mean(area_im[c].T[r.coords[:, 1], r.coords[:, 0]])
+                        for c in range(self.num_channels)
+                    ])
 
                 if count == 0:
                     self.mask_props.tf_sat = tf_sat
@@ -1944,9 +1953,14 @@ def process_file(po):
             cellpose_image = np.zeros((3, image.mip.shape[2], image.mip.shape[1]))
 
             ''' number on the RHS is the channel number from the image name (i.e. X in _ch0X.tif) '''
-            cellpose_image[0, :, :] = image.mip[2, :, :]  # R
-            cellpose_image[1, :, :] = image.mip[1, :, :]  # G
-            cellpose_image[2, :, :] = image.mip[0, :, :]  # B
+            try:
+                cellpose_image[0, :, :] = image.mip[2, :, :]  # R
+                cellpose_image[1, :, :] = image.mip[1, :, :]  # G
+                cellpose_image[2, :, :] = image.mip[0, :, :]  # B
+            except:
+                cellpose_image[0, :, :] = image.mip[2, :, :].T  # R
+                cellpose_image[1, :, :] = image.mip[1, :, :].T  # G
+                cellpose_image[2, :, :] = image.mip[0, :, :].T  # B
 
             # note that image.mask_ch is not transformed with the cellpose bindings
 
